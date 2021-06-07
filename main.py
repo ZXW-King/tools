@@ -65,9 +65,14 @@ def main():
         root = len(os.path.dirname(args.input))
         dirs = os.listdir(args.input)
         for d in dirs:
+            d = os.path.join(args.input, d)
+            if not os.path.isdir(d):
+                continue
             print("in dir: ", d)
-            files = Walk(os.path.join(args.input, d), ['jpg', 'png'])
-            config_file = os.path.join(os.path.join(args.input, d), CONFIG_FILE)
+            files = Walk(d, ['jpg', 'png'])
+            config_file = os.path.join(args.input, CONFIG_FILE)
+            if not os.path.exists(config_file):
+                config_file = os.path.join(d, CONFIG_FILE)
             fisheye_x, fisheye_y = ReadPara(config_file)
 
             for f in tqdm(files):
@@ -75,7 +80,7 @@ def main():
                 if imageRemap is None:
                     print(f)
                     continue
-                WriteImage(imageRemap, f, args.output_dir , root)
+                # WriteImage(imageRemap, f, args.output_dir , root)
 
 
 if __name__ == '__main__':

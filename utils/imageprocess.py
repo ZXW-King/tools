@@ -22,7 +22,9 @@ def ReadPara(file):
 
     r = config.getNode('Rl').mat()
     p = config.getNode('Pl').mat()
+    p[p>1] /= 2
     k = config.getNode('Kl').mat()
+    k[k>1] /= 2
     d = config.getNode('Dl').mat()
 
     config.release()
