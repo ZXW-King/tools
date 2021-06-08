@@ -13,27 +13,32 @@ import os
 
 W, H  = 640, 400
 
-def ReadPara(file):
+def GetFishEye(config, flag='l'):
+    r = config.getNode('R'+flag).mat()
+    p = config.getNode('P'+flag).mat()
+    p[p>1] /= 2
+    k = config.getNode('K'+flag).mat()
+    k[k>1] /= 2
+    d = config.getNode('D'+flag).mat()
+
+
+    fisheye_x, fisheye_y = np.ndarray((H, W), np.float32), np.ndarray((H, W), np.float32)
+
+    cv2.fisheye.initUndistortRectifyMap(k, d, r, p[0:3, 0:3], (W, H), cv2.CV_32FC1, fisheye_x, fisheye_y )
+    return  fisheye_x, fisheye_y
+
+def ReadPara(file, ):
     if not os.path.exists(file):
         print("not exist file <", file, ">.")
         exit(0)
 
     config = cv2.FileStorage(file, cv2.FILE_STORAGE_READ)
-
-    r = config.getNode('Rl').mat()
-    p = config.getNode('Pl').mat()
-    p[p>1] /= 2
-    k = config.getNode('Kl').mat()
-    k[k>1] /= 2
-    d = config.getNode('Dl').mat()
+    fisheye_x_l, fisheye_y_l = GetFishEye(config, 'l')
+    fisheye_x_r, fisheye_y_r = GetFishEye(config, 'r')
 
     config.release()
 
-    fisheye_x, fisheye_y = np.ndarray((H, W), np.float32), np.ndarray((H, W), np.float32)
-
-    cv2.fisheye.initUndistortRectifyMap(k, d, r, p[0:3, 0:3], (W, H), cv2.CV_32FC1, fisheye_x, fisheye_y )
-
-    return fisheye_x, fisheye_y
+    return fisheye_x_l, fisheye_y_l, fisheye_x_r, fisheye_y_r
 
 
 def Remap(image, fisheye_x, fisheye_y):

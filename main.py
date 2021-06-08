@@ -11,6 +11,7 @@ import sys, os
 import cv2
 import numpy as np
 from tqdm import tqdm
+import shutil
 
 CURRENT_DIR = os.path.dirname(__file__)
 sys.path.append(os.path.join(CURRENT_DIR, '../../'))
@@ -35,14 +36,18 @@ def GetArgs():
 def RemapFile(file, flip, fisheye_x, fisheye_y):
     image = cv2.imread(file)
     if image is None:
-        print(file)
-        return
+        print("image is empty :", file)
+        return None
     imageRemap = Remap(image, fisheye_x, fisheye_y)
-    cv2.namedWindow("remap")
-    cv2.imshow("remap", np.hstack((image, imageRemap)))
-    cv2.waitKey(0)
+    # view = np.hstack((image, imageRemap))
+
     if flip:
         imageRemap = imageRemap[::-1, :, :]
+        # view = view[::-1, :, :]
+
+    # cv2.namedWindow("remap")
+    # cv2.imshow("remap", view)
+    # cv2.waitKey(0)
 
     return imageRemap
 
@@ -65,6 +70,8 @@ def main():
         root = len(os.path.dirname(args.input))
         dirs = os.listdir(args.input)
         for d in dirs:
+            if 'rgb' in d:
+                config_file
             d = os.path.join(args.input, d)
             if not os.path.isdir(d):
                 continue
@@ -73,14 +80,23 @@ def main():
             config_file = os.path.join(args.input, CONFIG_FILE)
             if not os.path.exists(config_file):
                 config_file = os.path.join(d, CONFIG_FILE)
-            fisheye_x, fisheye_y = ReadPara(config_file)
+            fisheye_x_l, fisheye_y_l, fisheye_x_r, fisheye_y_r = ReadPara(config_file)
 
+            count = 0
             for f in tqdm(files):
-                imageRemap = RemapFile(f, args.flip, fisheye_x, fisheye_y)
+                if 'cam0' in f:
+                    imageRemap = RemapFile(f, args.flip, fisheye_x_l, fisheye_y_l)
+                elif 'cam1' in f:
+                    imageRemap = RemapFile(f, args.flip, fisheye_x_r, fisheye_y_r)
                 if imageRemap is None:
                     print(f)
                     continue
-                # WriteImage(imageRemap, f, args.output_dir , root)
+                WriteImage(imageRemap, f, args.output_dir , root)
+                count += 1
+                if count > 1000:
+                    os.system('sync')
+                    count = 0
+
 
 
 if __name__ == '__main__':
