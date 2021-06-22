@@ -88,6 +88,9 @@ def main():
                     imageRemap = RemapFile(f, args.flip, fisheye_x_l, fisheye_y_l)
                 elif 'cam1' in f:
                     imageRemap = RemapFile(f, args.flip, fisheye_x_r, fisheye_y_r)
+                else:
+                    continue
+
                 if imageRemap is None:
                     print(f)
                     continue
