@@ -13,12 +13,13 @@ import os
 
 W, H  = 640, 400
 
-def GetFishEye(config, flag='l'):
+def GetFishEye(config, flag='l', scale=False):
     r = config.getNode('R'+flag).mat()
     p = config.getNode('P'+flag).mat()
-    p[p>1] /= 2
     k = config.getNode('K'+flag).mat()
-    k[k>1] /= 2
+    if scale:
+        p[p>1] /= 2
+        k[k>1] /= 2
     d = config.getNode('D'+flag).mat()
 
 
@@ -27,14 +28,14 @@ def GetFishEye(config, flag='l'):
     cv2.fisheye.initUndistortRectifyMap(k, d, r, p[0:3, 0:3], (W, H), cv2.CV_32FC1, fisheye_x, fisheye_y )
     return  fisheye_x, fisheye_y
 
-def ReadPara(file, ):
+def ReadPara(file, scale):
     if not os.path.exists(file):
         print("not exist file <", file, ">.")
         exit(0)
 
     config = cv2.FileStorage(file, cv2.FILE_STORAGE_READ)
-    fisheye_x_l, fisheye_y_l = GetFishEye(config, 'l')
-    fisheye_x_r, fisheye_y_r = GetFishEye(config, 'r')
+    fisheye_x_l, fisheye_y_l = GetFishEye(config, 'l', scale)
+    fisheye_x_r, fisheye_y_r = GetFishEye(config, 'r', scale)
 
     config.release()
 
