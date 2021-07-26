@@ -68,7 +68,7 @@ def main():
         dirs = os.listdir(args.input)
         for d in dirs:
             if 'rgb' in d:
-                config_file
+                continue
             d = os.path.join(args.input, d)
             if not os.path.isdir(d):
                 continue
