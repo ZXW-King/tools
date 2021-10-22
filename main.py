@@ -67,8 +67,6 @@ def main():
         root = len(os.path.dirname(args.input.rstrip("/")))
         dirs = os.listdir(args.input)
         for d in dirs:
-            if 'rgb' in d:
-                continue
             d = os.path.join(args.input, d)
             if not os.path.isdir(d):
                 continue
