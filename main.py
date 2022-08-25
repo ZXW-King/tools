@@ -72,6 +72,10 @@ def main():
                 continue
             print("in dir: ", d)
             files = Walk(d, ['jpg', 'png'])
+
+            if len(files) == 0:
+                continue
+
             config_file = os.path.join(args.input, CONFIG_FILE)
             if not os.path.exists(config_file):
                 config_file = os.path.join(d, CONFIG_FILE)
