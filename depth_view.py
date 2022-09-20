@@ -41,8 +41,15 @@ def main():
     for image_file in tqdm(image_list):
         image = cv2.imread(image_file)
         dpeth_file = image_file.replace(args.image, args.depth)
+
+        for suffix in ['.jpg', '.jpeg', '.png']:
+            if not os.path.exists(dpeth_file):
+                dpeth_file = os.path.splitext(dpeth_file)[0] + suffix
+            else:
+                break
         if not os.path.exists(dpeth_file):
             print("not exist {}".format(dpeth_file))
+            continue
         depth = cv2.imread(dpeth_file)
         color = cv2.applyColorMap(depth, cv2.COLORMAP_HSV)
         # out = cv2.applyColorMap(depth, cv2.COLORMAP_WINTER)
@@ -57,9 +64,9 @@ def main():
         cv2.imshow("result", concat)
         cv2.waitKey(1)
 
-        output_color_file = image_file.replace(args.image, os.path.join(args.output, "color"))
-        output_cover_file = image_file.replace(args.image, os.path.join(args.output, "cover"))
-        output_compare_file = image_file.replace(args.image, os.path.join(args.output, "compare"))
+        output_color_file = image_file.replace(args.image, os.path.join(args.output, "color/"))
+        output_cover_file = image_file.replace(args.image, os.path.join(args.output, "cover/"))
+        output_compare_file = image_file.replace(args.image, os.path.join(args.output, "compare/"))
         MkdirSimple(output_color_file)
         MkdirSimple(output_cover_file)
         MkdirSimple(output_compare_file)

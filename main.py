@@ -27,8 +27,8 @@ def GetArgs():
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--input", type=str, help="image file or dir")
     parser.add_argument("--output_dir", type=str, default=None, help="output dir")
-    parser.add_argument("--flip", type=bool, default=False, help="flip up-down")
-    parser.add_argument("--module", type=bool, default=False, help="data capture module")
+    parser.add_argument("--flip", action="store_true", help="flip up-down")
+    parser.add_argument("--module", action="store_true", help="data capture module")
 
     args = parser.parse_args()
     return args
