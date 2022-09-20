@@ -19,14 +19,15 @@ sys.path.append(os.path.join(CURRENT_DIR, '../../'))
 import argparse
 from utils.imageprocess import Remap, ReadPara
 from utils.file import MkdirSimple, Walk
+import shutil
 
-CONFIG_FILE = 'config.yaml'
+CONFIG_FILE = ['config.yaml', 'MODULE.yaml']
 
 def GetArgs():
     parser = argparse.ArgumentParser(description="",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--input", type=str, help="image file or dir")
-    parser.add_argument("--output_dir", type=str, default=None, help="output dir")
+    parser.add_argument("--output", type=str, default=None, help="output dir")
     parser.add_argument("--flip", action="store_true", help="flip up-down")
     parser.add_argument("--module", action="store_true", help="data capture module")
 
@@ -48,25 +49,35 @@ def RemapFile(image, fisheye_x, fisheye_y):
 
     return imageRemap
 
-def WriteImage(image, file, output_dir, root_len):
-    if output_dir is not None:
+def WriteImage(image, file, output, root_len):
+    if output is not None:
         sub_path = file[root_len+1:]
-        output_file = os.path.join(output_dir, sub_path)
+        output_file = os.path.join(output, sub_path)
         MkdirSimple(output_file)
         cv2.imwrite(output_file, image)
+
+def GetConfigFile(path):
+    for file_name in CONFIG_FILE:
+        file = os.path.join(path, file_name)
+        if os.path.exists(file):
+           break
+    return file
 
 def main():
     args = GetArgs()
 
     if os.path.isfile(args.input):
         root = len(os.path.dirname(args.input))
-        fisheye_x, fisheye_y = ReadPara(os.path.join(os.path.dirname(args.input), CONFIG_FILE), args.module)
+        config_file = GetConfigFile(os.path.dirname(args.input))
+        fisheye_x, fisheye_y = ReadPara(config_file, args.module)
         imageRemap = RemapFile(args.input, args.flip, fisheye_x, fisheye_y)
-        WriteImage(imageRemap, args.input, args.output_dir , root)
+        WriteImage(imageRemap, args.input, args.output , root)
     else:
-        root = len(os.path.dirname(args.input.rstrip("/")))
+        root = len(args.input.rstrip("/"))
         dirs = os.listdir(args.input)
+
         for d in dirs:
+            config_file = GetConfigFile(args.input)
             d = os.path.join(args.input, d)
             if not os.path.isdir(d):
                 continue
@@ -76,10 +87,13 @@ def main():
             if len(files) == 0:
                 continue
 
-            config_file = os.path.join(args.input, CONFIG_FILE)
             if not os.path.exists(config_file):
-                config_file = os.path.join(d, CONFIG_FILE)
+                config_file = GetConfigFile(d)
             fisheye_x_l, fisheye_y_l, fisheye_x_r, fisheye_y_r = ReadPara(config_file, args.module)
+
+            config_file_dst = config_file.replace(args.input, args.output)
+            MkdirSimple(config_file_dst)
+            shutil.copyfile(config_file, config_file_dst)
 
             count = 0
             for f in tqdm(files):
@@ -88,13 +102,12 @@ def main():
                     print("image is empty :", f)
                     continue
 
-                if args.module:
-                    if 'rgb' in f:
-                        imageRemap = image
-                    elif 'cam0' in f:
-                        imageRemap = RemapFile(image, fisheye_x_l, fisheye_y_l)
-                    elif 'cam1' in f:
-                        imageRemap = RemapFile(image, fisheye_x_r, fisheye_y_r)
+                if 'rgb' in f:
+                    imageRemap = image
+                elif 'cam0' in f:
+                    imageRemap = RemapFile(image, fisheye_x_l, fisheye_y_l)
+                elif 'cam1' in f:
+                    imageRemap = RemapFile(image, fisheye_x_r, fisheye_y_r)
                 else:
                     imageRemap = RemapFile(image, fisheye_x_l, fisheye_y_l)
 
@@ -107,7 +120,7 @@ def main():
                 else:
                     imageFilp = imageRemap
 
-                WriteImage(imageFilp, f, args.output_dir , root)
+                WriteImage(imageFilp, f, args.output , root)
                 count += 1
                 if count > 1000:
                     os.system('sync')
