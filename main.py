@@ -30,6 +30,7 @@ def GetArgs():
     parser.add_argument("--output", type=str, default=None, help="output dir")
     parser.add_argument("--flip", action="store_true", help="flip up-down")
     parser.add_argument("--module", action="store_true", help="data capture module")
+    parser.add_argument("--filelist", default = '', type=str, help="only remap this files")
 
     args = parser.parse_args()
     return args
@@ -75,6 +76,12 @@ def main():
     else:
         root = len(args.input.rstrip("/"))
         dirs = os.listdir(args.input)
+        valid_files = None
+        if args.filelist != '':
+            if not os.path.exists(args.filelist):
+                print("file {} not exist.".format(args.filelist))
+            else:
+                valid_files = [f.strip('\n') for f in open(args.filelist, 'r').readlines()]
 
         for d in dirs:
             config_file = GetConfigFile(args.input)
@@ -100,6 +107,8 @@ def main():
 
             count = 0
             for f in tqdm(files):
+                if args.filelist != '' and f not in valid_files:
+                    continue
                 image = cv2.imread(f)
                 if image is None:
                     print("image is empty :", f)
