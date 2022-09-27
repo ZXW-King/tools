@@ -27,7 +27,10 @@ def Walk(path, suffix:list):
             if os.path.splitext(file)[1].lower()[1:] in suffix:
                 file_list.append(os.path.join(root, file))
 
-    file_list.sort(key=lambda x:int(re.findall('\d+', os.path.splitext(os.path.basename(x))[0])[0]))
+    try:
+        file_list.sort(key=lambda x:int(re.findall('\d+', os.path.splitext(os.path.basename(x))[0])[0]))
+    except:
+        file_list.sort()
 
     return file_list
 

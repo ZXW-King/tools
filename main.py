@@ -107,7 +107,7 @@ def main():
 
             count = 0
             for f in tqdm(files):
-                if args.filelist != '' and f not in valid_files:
+                if args.filelist != '' and f[root+1:] not in valid_files:
                     continue
                 image = cv2.imread(f)
                 if image is None:
