@@ -78,17 +78,20 @@ def main():
 
         for d in dirs:
             config_file = GetConfigFile(args.input)
-            d = os.path.join(args.input, d)
-            if not os.path.isdir(d):
+            path = os.path.join(args.input, d)
+            if not os.path.isdir(path):
                 continue
-            print("in dir: ", d)
-            files = Walk(d, ['jpg', 'png'])
+            print("in dir: ", path)
+            files = Walk(path, ['jpg', 'png'])
 
             if len(files) == 0:
                 continue
 
             if not os.path.exists(config_file):
-                config_file = GetConfigFile(d)
+                config_file = GetConfigFile(path)
+                if not os.path.exists(config_file):
+                    dirs.extend([os.path.join(d, p) for p in os.listdir(path)])
+                    continue
             fisheye_x_l, fisheye_y_l, fisheye_x_r, fisheye_y_r = ReadPara(config_file, args.module)
 
             config_file_dst = config_file.replace(args.input, args.output)
