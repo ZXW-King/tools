@@ -20,8 +20,7 @@ import argparse
 from utils.imageprocess import Remap, ReadPara
 from utils.file import MkdirSimple, Walk
 import shutil
-
-CONFIG_FILE = ['config.yaml', 'MODULE.yaml']
+from utils.module import GetConfigFile
 
 def GetArgs():
     parser = argparse.ArgumentParser(description="",
@@ -56,13 +55,6 @@ def WriteImage(image, file, output, root_len):
         output_file = os.path.join(output, sub_path)
         MkdirSimple(output_file)
         cv2.imwrite(output_file, image)
-
-def GetConfigFile(path):
-    for file_name in CONFIG_FILE:
-        file = os.path.join(path, file_name)
-        if os.path.exists(file):
-           break
-    return file
 
 def main():
     args = GetArgs()

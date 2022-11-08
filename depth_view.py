@@ -51,12 +51,13 @@ def main():
             print("not exist {}".format(dpeth_file))
             continue
         depth = cv2.imread(dpeth_file)
+        depth = cv2.resize(depth, (image.shape[1], image.shape[0]))
         color = cv2.applyColorMap(depth, cv2.COLORMAP_HSV)
         # out = cv2.applyColorMap(depth, cv2.COLORMAP_WINTER)
 
         weighted = cv2.addWeighted(image, 0.3, color, 0.7, 2)
 
-        concat = np.vstack((np.hstack((image, depth)), np.hstack((weighted, color))))
+        concat = np.vstack((np.hstack((image, weighted)), np.hstack((depth, color))))
         size = (concat.shape[1], concat.shape[0])
         if videoWriter is None:
             videoWriter = cv2.VideoWriter(video_file, fourcc, fps, size)

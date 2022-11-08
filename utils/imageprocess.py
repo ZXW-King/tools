@@ -28,6 +28,30 @@ def GetFishEye(config, flag='l', scale=False):
     cv2.fisheye.initUndistortRectifyMap(k, d, r, p[0:3, 0:3], (W, H), cv2.CV_32FC1, fisheye_x, fisheye_y )
     return  fisheye_x, fisheye_y
 
+def GetR(file):
+    if not os.path.exists(file):
+        print("not exist file <", file, ">.")
+        exit(0)
+
+    config = cv2.FileStorage(file, cv2.FILE_STORAGE_READ)
+
+    rl = config.getNode('Rl').mat()
+    rr = config.getNode('Rr').mat()
+
+    return rl, rr
+
+def GetP(file):
+    if not os.path.exists(file):
+        print("not exist file <", file, ">.")
+        exit(0)
+
+    config = cv2.FileStorage(file, cv2.FILE_STORAGE_READ)
+
+    pl = config.getNode('Pl').mat()
+    pr = config.getNode('Pr').mat()
+
+    return pl, pr
+
 def ReadPara(file, scale):
     if not os.path.exists(file):
         print("not exist file <", file, ">.")
