@@ -27,6 +27,23 @@ def GetArgs():
     return args
 
 
+def GetDepthImg(img):
+    depth_img_rest = img.copy()
+    depth_img_R = depth_img_rest.copy()
+    depth_img_R[depth_img_rest > 255] = 255
+    depth_img_rest[depth_img_rest < 255] = 255
+    depth_img_rest -= 255
+    depth_img_G = depth_img_rest.copy()
+    depth_img_G[depth_img_rest > 255] = 255
+    depth_img_rest[depth_img_rest < 255] = 255
+    depth_img_rest -= 255
+    depth_img_B = depth_img_rest.copy()
+    depth_img_B[depth_img_rest > 255] = 255
+    depth_img_rgb = np.stack([depth_img_R, depth_img_G, depth_img_B], axis=2)
+
+    return depth_img_rgb.astype(np.uint8)
+
+
 def main():
     args = GetArgs()
     image_list = Walk(args.image, ["jpg", "png", "jpeg"])
@@ -50,14 +67,17 @@ def main():
         if not os.path.exists(dpeth_file):
             print("not exist {}".format(dpeth_file))
             continue
-        depth = cv2.imread(dpeth_file)
-        depth = cv2.resize(depth, (image.shape[1], image.shape[0]))
-        color = cv2.applyColorMap(depth, cv2.COLORMAP_HSV)
+        disp = cv2.imread(dpeth_file)
+        disp = cv2.resize(disp, (image.shape[1], image.shape[0]))
+        depth = 14.2 / disp * 100
+        depth = GetDepthImg(depth[:, :, 0])
+        color = cv2.applyColorMap(disp, cv2.COLORMAP_HSV)
         # out = cv2.applyColorMap(depth, cv2.COLORMAP_WINTER)
 
         weighted = cv2.addWeighted(image, 0.3, color, 0.7, 2)
 
-        concat = np.vstack((np.hstack((image, weighted)), np.hstack((depth, color))))
+        concat = np.vstack((np.hstack((image, weighted)), np.hstack((disp, color))
+                            , np.hstack((depth, color))))
         size = (concat.shape[1], concat.shape[0])
         if videoWriter is None:
             videoWriter = cv2.VideoWriter(video_file, fourcc, fps, size)
