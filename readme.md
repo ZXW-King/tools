@@ -22,3 +22,13 @@ python3 depth_view.py --image img_remap/left --depth depth/origin/left/gray --ou
 ```shell script
 python3 depth_remap_or_not.py --image_org img/left --depth_org depth/origin/left/gray --image_remap img_remap/left --depth_remap depth/remap/gray/left --output depth
 ```
+
+### 深的估计列表图像前后帧保存
+```shell script
+python  save_mono_image.py --file_name ./temp/diff_minute.txt --data_path /work/data/ABBY/REMAP/TRAIN/EVT/ --dest_path ./image_concat
+```
+
+### 深度估计训练用图像列表过滤
+```shell script
+python  save_mono_image.py --file_name ./temp/diff_minute.txt --data_path /work/data/ABBY/REMAP/TRAIN/EVT/ --dest_path ./image_concat
+```

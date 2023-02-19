@@ -75,6 +75,7 @@ def main():
             else:
                 valid_files = [f.strip('\n') for f in open(args.filelist, 'r').readlines()]
 
+        dirs = ['CameraData-1/10.28-11.10', 'CameraData-2/10.28-11.10', 'CameraData-3/10.28-11.10']
         for d in dirs:
             config_file = GetConfigFile(args.input)
             path = os.path.join(args.input, d)
