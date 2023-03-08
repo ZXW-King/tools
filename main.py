@@ -108,9 +108,9 @@ def main():
 
                 if 'rgb' in f:
                     imageRemap = image
-                elif 'cam0' in f:
+                elif 'cam0' in f or 'left' in f:
                     imageRemap = RemapFile(image, fisheye_x_l, fisheye_y_l)
-                elif 'cam1' in f:
+                elif 'cam1' in f or 'right' in f:
                     imageRemap = RemapFile(image, fisheye_x_r, fisheye_y_r)
                 else:
                     imageRemap = RemapFile(image, fisheye_x_l, fisheye_y_l)
