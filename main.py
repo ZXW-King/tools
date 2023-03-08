@@ -81,7 +81,11 @@ def main():
             if not os.path.isdir(path):
                 continue
             print("in dir: ", path)
-            files = Walk(path, ['jpg', 'png'])
+
+            if valid_files is None:
+                files = Walk(path, ['jpg', 'png'])
+            else:
+                files = [f for f in valid_files if d in f]
 
             if len(files) == 0:
                 continue
@@ -99,14 +103,14 @@ def main():
 
             count = 0
             for f in tqdm(files):
-                if args.filelist != '' and f[root+1:] not in valid_files:
-                    continue
+                f = os.path.join(args.input, f)
                 image = cv2.imread(f)
                 if image is None:
                     print("image is empty :", f)
                     continue
 
                 if 'rgb' in f:
+                    continue
                     imageRemap = image
                 elif 'cam0' in f or 'left' in f:
                     imageRemap = RemapFile(image, fisheye_x_l, fisheye_y_l)
