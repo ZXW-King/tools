@@ -9,8 +9,8 @@
 '''
 import torch
 
-batch_size = 2
-channel = 2
+batch_size = 1
+channel = 1
 height = 3
 width = 3
 max_disp = 3
@@ -53,8 +53,8 @@ def Gather():
     print("-" * 8, right_repeat.shape)
 
     # index for slice
-
-    index_slice = x_index_org.squeeze(0).squeeze(0).repeat(1, height, 1)
+    x_index_org = x_index_org.squeeze(0).squeeze(0)
+    index_slice = x_index_org.repeat(1, height, 1)
     print("index slice： ", index_slice)
     print("-" * 8, index_slice.shape)
 
@@ -72,6 +72,13 @@ def Gather():
     tensor_slice = right[:, :, index_last, index_slice]
     print("tensor_slice: ", tensor_slice)
     print("-" * 8, tensor_slice.shape)
+
+    # slice 2
+    dims = len(right.size())
+    tensor_slice1 = right[:, :, :, x_index_org.squeeze(1)]
+    tensor_slice2 = torch.transpose(tensor_slice1, 2, 3)
+    print("tensor_slice2: ", tensor_slice2)
+    print("-" * 8, tensor_slice2.shape)
 
     return
 
@@ -91,7 +98,10 @@ def Slice4D():
     a = torch.arange(batch_size * channel * height * width).reshape(batch_size, channel, height, width)
     print("tensor: ", a)
     print("-" * 8, a.shape)
-    index_1 = torch.LongTensor([[[[0, 1, 1], [0, 1, 0], [0, 1, 0]]]])
+    if height == 2:
+        index_1 = torch.LongTensor([[[0, 1, 1], [0, 1, 0]]])
+    elif height == 3:
+        index_1 = torch.LongTensor([[[[0, 1, 1], [0, 1, 0], [0, 1, 0]]]])
     print("index: ", index_1)
     print("-" * 8, index_1.shape)
 
@@ -104,7 +114,17 @@ def Slice4D():
     print("-" * 8, index_last.shape)
     new_tensor = a[:, :, index_last, index_slice]
 
+    # slice 2
+    dims = len(a.size())
+    new_tensor1 = a[:, :, :, index_slice]
+    print("slice1: ", new_tensor1)
+    print("-" * 8, new_tensor1.shape)
+    # new_tensor2 = torch.index_select(new_tensor1, dim=3, index=index_last.squeeze(1))
+    # new_tensor2 = torch.transpose(new_tensor1, 2, 3)
 
+    new_tensor2 = torch.transpose(new_tensor1, 2, 3)
+
+    # gather
     index_gather = index_1.repeat(batch_size, channel, 1, 1)
     print("index_gather: ", index_gather)
     print("-" * 8, index_gather.shape)
@@ -113,6 +133,10 @@ def Slice4D():
 
     print("slice: ", new_tensor)
     print("-" * 8, new_tensor.shape)
+    print("slice1: ", new_tensor1)
+    print("-" * 8, new_tensor1.shape)
+    print("slice2: ", new_tensor2)
+    print("-" * 8, new_tensor2.shape)
     print("gather: ", gathered)
     print("-" * 8, gathered.shape)
 
