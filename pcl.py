@@ -84,6 +84,12 @@ def main():
                                  [0, 0, 1]])
     pc = depth2xyz(depth_map, depth_cam_matrix, depth_scale = 1)
 
+    # 0: 左右 2: 前后 1： 上下
+    axis = 1
+    pc[:, :, axis] = -pc[:, :, axis]
+    axis = 2
+    pc[:, :, axis] = -pc[:, :, axis]
+
     print("Load a ply point cloud, print it, and render it")
     # 创建一个 Open3D 点云对象并加载数据
     pc_flatten = pc.reshape(-1, 3)
@@ -93,7 +99,10 @@ def main():
     # pcd = o3d.io.read_point_cloud("cat.ply")  # 这里的cat.ply替换成需要查看的点云文件
     print(pcd)
     print(np.asarray(pcd.points))
-    o3d.visualization.draw_geometries([pcd])
+
+    FOR = o3d.geometry.TriangleMesh.create_coordinate_frame(size=35, origin=[0, 0, 0])
+
+    o3d.visualization.draw_geometries([FOR, pcd])
 
     return
     # cv2.projectPoints()# 此时pc即为点云(point cloud)
