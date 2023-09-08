@@ -17,14 +17,15 @@ sys.path.append(os.path.join(CURRENT_DIR, '../../DL/relocation/'))
 import argparse
 
 import numpy as np
-
 import open3d as o3d
+from utils.file import Walk
 
 
 def GetArgs():
     parser = argparse.ArgumentParser(description="",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--file", type=str, default="", help="")
+    parser.add_argument("--bf", type=float, default="-1", help="")
 
     args = parser.parse_args()
     return args
@@ -71,38 +72,51 @@ def DrawPoint(array):
 
 def main():
     args = GetArgs()
-    # 随便生成一个 分辨率为(720, 1280) -> (高为720, 宽为1280)的深度图, 注意深度图shape为(720, 1280)即深度图为单通道, 维度为2
-    # 而不是类似于shape为(720, 1280, 3)维度为3的这种
-    depth_map = np.random.randint(0, 100, (320, 200))
 
-    depth_map = cv2.imread(args.file, cv2.IMREAD_UNCHANGED)
-    depth_map = depth_map.astype(float)
-    depth_map /= 100
+    files = Walk(args.file, ['jpg', 'png'])
 
-    depth_cam_matrix = np.array([[335, 0, 320],
-                                 [0, 335, 207],
-                                 [0, 0, 1]])
-    pc = depth2xyz(depth_map, depth_cam_matrix, depth_scale = 1)
 
-    # 0: 左右 2: 前后 1： 上下
-    axis = 1
-    pc[:, :, axis] = -pc[:, :, axis]
-    axis = 2
-    pc[:, :, axis] = -pc[:, :, axis]
+    i = 0
+    for f in files:
+        if i < 18:
+            i += 1
+            continue
 
-    print("Load a ply point cloud, print it, and render it")
-    # 创建一个 Open3D 点云对象并加载数据
-    pc_flatten = pc.reshape(-1, 3)
-    pcd = o3d.geometry.PointCloud()
-    pcd.points = o3d.utility.Vector3dVector(pc_flatten)
+        max_distance = 5
+        depth_map = cv2.imread(f, cv2.IMREAD_UNCHANGED)
+        depth_map = depth_map.astype(float)
+        depth_map /= 256
+        if args.bf > 0:
+            depth_map = args.bf / depth_map
+            depth_map[depth_map > max_distance] = 0
+            depth_map *= 100
+        else:
+            depth_map /= 100
 
-    # pcd = o3d.io.read_point_cloud("cat.ply")  # 这里的cat.ply替换成需要查看的点云文件
-    print(pcd)
-    print(np.asarray(pcd.points))
+        depth_cam_matrix = np.array([[302, 0, 300],
+                                     [0, 302, 187],
+                                     [0, 0, 1]])
+        pc = depth2xyz(depth_map, depth_cam_matrix, depth_scale = 1)
 
-    FOR = o3d.geometry.TriangleMesh.create_coordinate_frame(size=35, origin=[0, 0, 0])
+        # 0: 左右 2: 前后 1： 上下
+        axis = 1
+        pc[:, :, axis] = -pc[:, :, axis]
+        axis = 2
+        pc[:, :, axis] = -pc[:, :, axis]
 
-    o3d.visualization.draw_geometries([FOR, pcd])
+        print("Load a ply point cloud, print it, and render it")
+        # 创建一个 Open3D 点云对象并加载数据
+        pc_flatten = pc.reshape(-1, 3)
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(pc_flatten)
+
+        # pcd = o3d.io.read_point_cloud("cat.ply")  # 这里的cat.ply替换成需要查看的点云文件
+        # print(pcd)
+        # print(np.asarray(pcd.points))
+
+        FOR = o3d.geometry.TriangleMesh.create_coordinate_frame(size=35, origin=[0, 0, 0])
+
+        o3d.visualization.draw_geometries([FOR, pcd], window_name=f)
 
     return
     # cv2.projectPoints()# 此时pc即为点云(point cloud)
