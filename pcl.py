@@ -26,6 +26,7 @@ def GetArgs():
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--file", type=str, default="", help="")
     parser.add_argument("--bf", type=float, default="-1", help="")
+    parser.add_argument("--scale", type=int, default="256")
 
     args = parser.parse_args()
     return args
@@ -46,29 +47,35 @@ def depth2xyz(depth_map, depth_cam_matrix, flatten=False, depth_scale=1000):
 def Project(array, axis=0):
     axis1 = (axis + 1) % 3
     axis2 = (axis + 2) % 3
-    plane_array = array[:, :, (axis1, axis2)]
+    select_index = [axis1, axis2] if axis1 < axis2 else [axis2, axis1]
+
+    array_flatten = array.reshape(-1, 3)
+    plane_index = array_flatten[:, axis] > 2
+    plane_array = array_flatten[plane_index, :]
+    plane_array = plane_array[:, select_index]
 
     min_val = np.min(plane_array)
     max_val = np.max(plane_array)
 
     # 归一化数组到 [0, 1] 范围
-    normalized_arr = (plane_array - min_val) #  / (max_val - min_val)
+    normalized_arr = (plane_array - min_val) # / (max_val - min_val)
 
     return normalized_arr
 
 
-def DrawPoint(array):
+def DrawPoint(array, name):
     W = 1280
     H = W
+    radius = 2
     image = np.zeros([W, H])
-    array = array * (W - 1)
-    array = array.astype(np.int)
-    image[array] = 255
-    su = np.sum(image) / 255
-    su2 = W * H
+    # array = array * (W - 1)
+    array = array.astype(int)
 
-    cv2.imshow("name", image)
-    cv2.waitKey(0)
+    for a in array:
+        cv2.circle(image, a, radius, (255, 0, 0), -1, lineType=cv2.LINE_4)
+
+    cv2.imshow(name, image)
+    cv2.waitKey(100)
 
 def main():
     args = GetArgs()
@@ -78,20 +85,20 @@ def main():
 
     i = 0
     for f in files:
-        if i < 18:
-            i += 1
-            continue
+        # if i < 18:
+        #     i += 1
+        #     continue
 
         max_distance = 5
         depth_map = cv2.imread(f, cv2.IMREAD_UNCHANGED)
         depth_map = depth_map.astype(float)
-        depth_map /= 256
+        depth_map /= args.scale
         if args.bf > 0:
             depth_map = args.bf / depth_map
             depth_map[depth_map > max_distance] = 0
             depth_map *= 100
         else:
-            depth_map /= 100
+            pass
 
         depth_cam_matrix = np.array([[302, 0, 300],
                                      [0, 302, 187],
@@ -114,15 +121,17 @@ def main():
         # print(pcd)
         # print(np.asarray(pcd.points))
 
-        FOR = o3d.geometry.TriangleMesh.create_coordinate_frame(size=35, origin=[0, 0, 0])
+        points = Project(pc, axis=1)
+        name = "flatten"
+        cv2.namedWindow(name)
+        DrawPoint(points, name)
 
+        FOR = o3d.geometry.TriangleMesh.create_coordinate_frame(size=35, origin=[0, 0, 0])
         o3d.visualization.draw_geometries([FOR, pcd], window_name=f)
 
-    return
-    # cv2.projectPoints()# 此时pc即为点云(point cloud)
-    points = Project(pc, axis=2)
-    DrawPoint(points)
-    pc_flatten = pc.reshape(-1, 3)  # 等价于 pc = depth2xyz(depth_map, depth_cam_matrix, flatten=True)
+        # return
+        # cv2.projectPoints()# 此时pc即为点云(point cloud)
+        pc_flatten = pc.reshape(-1, 3)  # 等价于 pc = depth2xyz(depth_map, depth_cam_matrix, flatten=True)
 
     '''
     ################### 相机测距 ##################
