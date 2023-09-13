@@ -141,27 +141,71 @@ def Reflect4Show(pc):
 
     return pc
 
+def GetBox(W, H, name, xml_path):
+    boxes = []
+    if xml_path == "":
+        return boxes
+
+    file = os.path.join(xml_path, name)
+    file = os.path.splitext(file)[0] + '.txt'
+    if not os.path.exists(file):
+        return boxes
+
+    with open(file, 'r') as f:
+        lines = f.readlines()
+        data = [l.strip().split()[1:] for l in lines]
+        for d in data:
+            d = [float(i) for i in d]
+            boxes.append([d[0] * W, d[1] * H, d[2] * W, d[3] * H])
+
+    return boxes
+
+def CropByBox(depth_map, name, xml_path):
+    H, W = depth_map.shape
+    boxes = GetBox(W, H, name, xml_path)
+
+    crop_depth = np.zeros_like(depth_map)
+    if len(boxes) < 1:
+        return depth_map
+
+    box = boxes[0]
+    top, bottom = int(box[1] - box[3] / 2), int(box[1] + box[3] / 2)
+    left, right = int(box[0] - box[2] / 2), int(box[0] + box[2] / 2)
+    crop_depth[top:bottom, left:right] = depth_map[top:bottom, left:right]
+
+    return  crop_depth
+
+
+
 def main():
     args = GetArgs()
 
     files = Walk(args.file, ['jpg', 'png'])
+    root_len = len(args.file.strip().rstrip('/'))
 
     for f in files:
         array = cv2.imread(f, cv2.IMREAD_UNCHANGED)
         depth_map = ScaleRecovery(array, args.scale, args.bf)
+        array_box = CropByBox(depth_map, f[root_len+1:], args.xml)
         KL = GetKl(args.config)
         pc = Depth2XYZ(depth_map, KL, depth_scale = 1)
         pc = Reflect4Show(pc)
+        pc_box = Depth2XYZ(array_box, KL, depth_scale = 1)
+        pc_box = Reflect4Show(pc_box)
 
         print("Load a ply point cloud, print it, and render it")
         # 创建一个 Open3D 点云对象并加载数据
         pc_flatten = pc.reshape(-1, 3)
 
-        pc_crop = Crop(pc, axis=1, min = -10, max = 60)
+        pc_crop = Crop(pc_box, axis=1, min = 2, max = 70)
 
+
+
+        # todo : not skip
         if pc_crop is None:
             continue
 
+        pc_crop[-1, :] = [0, 0, 0] ## add origin point
         project_points = Project(pc_crop, axis=1)
 
         pcd = o3d.geometry.PointCloud()
@@ -184,8 +228,8 @@ def main():
 
         # 创建一个坐标线的起点和终点
         h_range = 200
-        starts = [[0, 2, 0], [0, 2, -h_range], [-50, 2, 0], [-h_range, 2, -h_range], [-50, 2, 0], [-50, 50, -h_range]]
-        ends = [[0, 50, 0], [0, 50, -h_range],[-50, 50, 0], [-h_range, 50, -h_range], [-h_range, 2, -h_range], [-h_range, 50, -h_range]]
+        starts = [[0, 2, 0], [0, 2, -h_range]]
+        ends = [[0, 50, 0], [0, 50, -h_range]]
         line_sets = []
         for start_point, end_point in zip(starts, ends):
             line_set = o3d.geometry.LineSet()
