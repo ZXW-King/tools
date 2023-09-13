@@ -28,13 +28,14 @@ def GetArgs():
     parser.add_argument("--bf", type=float, default="-1", help="")
     parser.add_argument("--scale", type=int, default="256")
     parser.add_argument("--config", type=str, default="")
+    parser.add_argument("--xml", type=str, default="")
 
     args = parser.parse_args()
     return args
 
 
 
-def depth2xyz(depth_map, depth_cam_matrix, flatten=False, depth_scale=1000):
+def Depth2XYZ(depth_map, depth_cam_matrix, flatten=False, depth_scale=1000):
     fx, fy = depth_cam_matrix[0, 0], depth_cam_matrix[1, 1]
     cx, cy = depth_cam_matrix[0, 2], depth_cam_matrix[1, 2]
     h, w = np.mgrid[0:depth_map.shape[0], 0:depth_map.shape[1]]
@@ -45,11 +46,7 @@ def depth2xyz(depth_map, depth_cam_matrix, flatten=False, depth_scale=1000):
     # xyz=cv2.rgbd.depthTo3d(depth_map,depth_cam_matrix)
     return xyz
 
-def Project(array, axis=0, min = 0, max = 300):
-    axis1 = (axis + 1) % 3
-    axis2 = (axis + 2) % 3
-    select_index = [axis1, axis2] if axis1 < axis2 else [axis2, axis1]
-
+def Crop(array, axis, min = 0, max = 300):
     array_flatten = array.reshape(-1, 3)
 
     less = array_flatten[:, axis] > min
@@ -60,8 +57,16 @@ def Project(array, axis=0, min = 0, max = 300):
     if not any(plane_index):
         return None, None
 
-    plane_pcl = array_flatten[plane_index, :]
-    plane_array = plane_pcl[:, select_index]
+    crop_pcl = array_flatten[plane_index, :]
+
+    return crop_pcl
+
+def Project(array, axis=0, min = 0, max = 300):
+    axis1 = (axis + 1) % 3
+    axis2 = (axis + 2) % 3
+    select_index = [axis1, axis2] if axis1 < axis2 else [axis2, axis1]
+
+    plane_array = array[:, select_index]
 
     min_val = np.min(plane_array)
     max_val = np.max(plane_array)
@@ -69,7 +74,7 @@ def Project(array, axis=0, min = 0, max = 300):
     # 归一化数组到 [0, 1] 范围
     normalized_arr = (plane_array - min_val) # / (max_val - min_val)
 
-    return normalized_arr, plane_pcl
+    return normalized_arr
 
 
 def DrawPoint(array, name):
@@ -103,69 +108,71 @@ def GetColor(points):
 
     return colors
 
+def ScaleRecovery(array, scale, bf):
+    max_distance = 5
+    array = array.astype(float)
+    array /= scale
+    if bf > 0:
+        array = bf / array
+        array[array > max_distance] = 0
+        array *= 100
+    else:
+        pass
+
+    return array
+
+def GetKl(config):
+    depth_cam_matrix = np.array([[334.6, 0, 319.7],
+                                 [0, 334.5, 206.9],
+                                 [0, 0, 1]])
+
+    if config != "":
+        fs = cv2.FileStorage(config, cv2.FILE_STORAGE_READ)
+        depth_cam_matrix = fs.getNode("Kl").mat()
+
+    return depth_cam_matrix
+
+def Reflect4Show(pc):
+    # 0: 左右 2: 前后 1： 上下
+    axis = 1
+    pc[:, :, axis] = -pc[:, :, axis]
+    axis = 2
+    pc[:, :, axis] = -pc[:, :, axis]
+
+    return pc
+
 def main():
     args = GetArgs()
 
     files = Walk(args.file, ['jpg', 'png'])
 
-
-    i = 0
     for f in files:
-        # if i < 18:
-        #     i += 1
-        #     continue
-
-        max_distance = 5
-        depth_map = cv2.imread(f, cv2.IMREAD_UNCHANGED)
-        depth_map = depth_map.astype(float)
-        depth_map /= args.scale
-        if args.bf > 0:
-            depth_map = args.bf / depth_map
-            depth_map[depth_map > max_distance] = 0
-            depth_map *= 100
-        else:
-            pass
-
-        depth_cam_matrix = np.array([[334.6, 0, 319.7],
-                                     [0, 334.5, 206.9],
-                                     [0, 0, 1]])
-
-        if args.config != "":
-            fs = cv2.FileStorage(args.config, cv2.FILE_STORAGE_READ)
-            depth_cam_matrix = fs.getNode("Kl").mat()
-
-        pc = depth2xyz(depth_map, depth_cam_matrix, depth_scale = 1)
-
-        # 0: 左右 2: 前后 1： 上下
-        axis = 1
-        pc[:, :, axis] = -pc[:, :, axis]
-        axis = 2
-        pc[:, :, axis] = -pc[:, :, axis]
+        array = cv2.imread(f, cv2.IMREAD_UNCHANGED)
+        depth_map = ScaleRecovery(array, args.scale, args.bf)
+        KL = GetKl(args.config)
+        pc = Depth2XYZ(depth_map, KL, depth_scale = 1)
+        pc = Reflect4Show(pc)
 
         print("Load a ply point cloud, print it, and render it")
         # 创建一个 Open3D 点云对象并加载数据
         pc_flatten = pc.reshape(-1, 3)
 
-        # pcd = o3d.io.read_point_cloud("cat.ply")  # 这里的cat.ply替换成需要查看的点云文件
-        # print(pcd)
-        # print(np.asarray(pcd.points))
+        pc_crop = Crop(pc, axis=1, min = -10, max = 60)
 
+        if pc_crop is None:
+            continue
 
-        project_points, project_pcl = Project(pc, axis=1, min = -10, max = 60)
-
-        if project_points is None:
-            return
-
+        project_points = Project(pc_crop, axis=1)
 
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(pc_flatten)
 
 
         pcd2 = o3d.geometry.PointCloud()
-        pcd2.points = o3d.utility.Vector3dVector(project_pcl)
+        pcd2.points = o3d.utility.Vector3dVector(pc_crop)
 
         # pcd.paint_uniform_color([1, 0.706, 0])  # 黄色
-        colors = GetColor(project_pcl)
+        colors = GetColor(pc_crop)
         pcd2.paint_uniform_color([0, 0.651, 0.929])  # 蓝色
         pcd2.colors = o3d.utility.Vector3dVector(colors)
 
@@ -186,12 +193,6 @@ def main():
             lines = np.array([[0, 1]])
             line_set.lines = o3d.utility.Vector2iVector(lines)
             line_sets.append(line_set)
-
-        # 创建一个函数来绘制坐标线
-        def draw_coordinate_lines(vis):
-            vis.add_geometry(line_set)
-            vis.poll_events()
-            vis.update_renderer()
 
         o3d.visualization.draw_geometries([FOR, pcd, pcd2] + line_sets)
 
