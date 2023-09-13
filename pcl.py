@@ -27,6 +27,7 @@ def GetArgs():
     parser.add_argument("--file", type=str, default="", help="")
     parser.add_argument("--bf", type=float, default="-1", help="")
     parser.add_argument("--scale", type=int, default="256")
+    parser.add_argument("--config", type=str, default="")
 
     args = parser.parse_args()
     return args
@@ -128,6 +129,11 @@ def main():
         depth_cam_matrix = np.array([[334.6, 0, 319.7],
                                      [0, 334.5, 206.9],
                                      [0, 0, 1]])
+
+        if args.config != "":
+            fs = cv2.FileStorage(args.config, cv2.FILE_STORAGE_READ)
+            depth_cam_matrix = fs.getNode("Kl").mat()
+
         pc = depth2xyz(depth_map, depth_cam_matrix, depth_scale = 1)
 
         # 0: 左右 2: 前后 1： 上下
