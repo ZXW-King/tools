@@ -44,15 +44,23 @@ def depth2xyz(depth_map, depth_cam_matrix, flatten=False, depth_scale=1000):
     # xyz=cv2.rgbd.depthTo3d(depth_map,depth_cam_matrix)
     return xyz
 
-def Project(array, axis=0):
+def Project(array, axis=0, min = 0, max = 300):
     axis1 = (axis + 1) % 3
     axis2 = (axis + 2) % 3
     select_index = [axis1, axis2] if axis1 < axis2 else [axis2, axis1]
 
     array_flatten = array.reshape(-1, 3)
-    plane_index = array_flatten[:, axis] > 2
-    plane_array = array_flatten[plane_index, :]
-    plane_array = plane_array[:, select_index]
+
+    less = array_flatten[:, axis] > min
+    great = array_flatten[:, axis] < max
+
+    plane_index = np.logical_and(less, great)
+
+    if not any(plane_index):
+        return None, None
+
+    plane_pcl = array_flatten[plane_index, :]
+    plane_array = plane_pcl[:, select_index]
 
     min_val = np.min(plane_array)
     max_val = np.max(plane_array)
@@ -60,7 +68,7 @@ def Project(array, axis=0):
     # 归一化数组到 [0, 1] 范围
     normalized_arr = (plane_array - min_val) # / (max_val - min_val)
 
-    return normalized_arr
+    return normalized_arr, plane_pcl
 
 
 def DrawPoint(array, name):
@@ -68,14 +76,31 @@ def DrawPoint(array, name):
     H = W
     radius = 2
     image = np.zeros([W, H])
-    # array = array * (W - 1)
-    array = array.astype(int)
 
-    for a in array:
-        cv2.circle(image, a, radius, (255, 0, 0), -1, lineType=cv2.LINE_4)
+    if array is not None:
+        # array = array * (W - 1)
+        array = array.astype(int)
+
+        for a in array:
+            cv2.circle(image, a, radius, (255, 0, 0), -1, lineType=cv2.LINE_4)
 
     cv2.imshow(name, image)
     cv2.waitKey(100)
+
+def GetColor(points):
+    # 选择一个参考点（这里选择点云的第一个点）
+    reference_point = points[0]
+
+    # 计算每个点到参考点的距离
+    distances = np.linalg.norm(points - reference_point, axis=1)
+
+    # 将距离映射到颜色空间，这里使用一个简单的映射，可以根据需要进行调整
+    min_distance = np.min(distances)
+    max_distance = np.max(distances)
+    normalized_distances = (distances - min_distance) / (max_distance - min_distance)
+    colors = np.stack([1 - normalized_distances, normalized_distances, np.zeros_like(distances)], axis=1)
+
+    return colors
 
 def main():
     args = GetArgs()
@@ -100,8 +125,8 @@ def main():
         else:
             pass
 
-        depth_cam_matrix = np.array([[302, 0, 300],
-                                     [0, 302, 187],
+        depth_cam_matrix = np.array([[334.6, 0, 319.7],
+                                     [0, 334.5, 206.9],
                                      [0, 0, 1]])
         pc = depth2xyz(depth_map, depth_cam_matrix, depth_scale = 1)
 
@@ -114,20 +139,55 @@ def main():
         print("Load a ply point cloud, print it, and render it")
         # 创建一个 Open3D 点云对象并加载数据
         pc_flatten = pc.reshape(-1, 3)
-        pcd = o3d.geometry.PointCloud()
-        pcd.points = o3d.utility.Vector3dVector(pc_flatten)
 
         # pcd = o3d.io.read_point_cloud("cat.ply")  # 这里的cat.ply替换成需要查看的点云文件
         # print(pcd)
         # print(np.asarray(pcd.points))
 
-        points = Project(pc, axis=1)
+
+        project_points, project_pcl = Project(pc, axis=1, min = -10, max = 60)
+
+        if project_points is None:
+            return
+
+
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(pc_flatten)
+
+
+        pcd2 = o3d.geometry.PointCloud()
+        pcd2.points = o3d.utility.Vector3dVector(project_pcl)
+
+        # pcd.paint_uniform_color([1, 0.706, 0])  # 黄色
+        colors = GetColor(project_pcl)
+        pcd2.paint_uniform_color([0, 0.651, 0.929])  # 蓝色
+        pcd2.colors = o3d.utility.Vector3dVector(colors)
+
         name = "flatten"
         cv2.namedWindow(name)
-        DrawPoint(points, name)
+        DrawPoint(project_points, name)
 
         FOR = o3d.geometry.TriangleMesh.create_coordinate_frame(size=35, origin=[0, 0, 0])
-        o3d.visualization.draw_geometries([FOR, pcd], window_name=f)
+
+        # 创建一个坐标线的起点和终点
+        h_range = 200
+        starts = [[0, 2, 0], [0, 2, -h_range], [-50, 2, 0], [-h_range, 2, -h_range], [-50, 2, 0], [-50, 50, -h_range]]
+        ends = [[0, 50, 0], [0, 50, -h_range],[-50, 50, 0], [-h_range, 50, -h_range], [-h_range, 2, -h_range], [-h_range, 50, -h_range]]
+        line_sets = []
+        for start_point, end_point in zip(starts, ends):
+            line_set = o3d.geometry.LineSet()
+            line_set.points = o3d.utility.Vector3dVector(np.vstack((start_point, end_point)))
+            lines = np.array([[0, 1]])
+            line_set.lines = o3d.utility.Vector2iVector(lines)
+            line_sets.append(line_set)
+
+        # 创建一个函数来绘制坐标线
+        def draw_coordinate_lines(vis):
+            vis.add_geometry(line_set)
+            vis.poll_events()
+            vis.update_renderer()
+
+        o3d.visualization.draw_geometries([FOR, pcd, pcd2] + line_sets)
 
         # return
         # cv2.projectPoints()# 此时pc即为点云(point cloud)
