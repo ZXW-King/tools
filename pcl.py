@@ -18,7 +18,7 @@ import argparse
 
 import numpy as np
 import open3d as o3d
-from utils.file import Walk
+from utils.file import Walk, MkdirSimple
 
 
 def GetArgs():
@@ -29,6 +29,9 @@ def GetArgs():
     parser.add_argument("--scale", type=int, default="256")
     parser.add_argument("--config", type=str, default="")
     parser.add_argument("--xml", type=str, default="")
+    parser.add_argument("--image", type=str, default="")
+    parser.add_argument("--save_dir", type=str, default="")
+    parser.add_argument("--show_pcl", action="store_true")
 
     args = parser.parse_args()
     return args
@@ -90,8 +93,12 @@ def DrawPoint(array, name):
         for a in array:
             cv2.circle(image, a, radius, (255, 0, 0), -1, lineType=cv2.LINE_4)
 
-    cv2.imshow(name, image)
-    cv2.waitKey(100)
+    cv2.circle(image, array[-1], radius * 3, (255, 0, 0), -1, lineType=cv2.LINE_4)
+
+    left, right = np.min(array[:, 0]), np.max(array[:, 0])
+    top, bottom= np.min(array[:, 1]), np.max(array[:, 1])
+    image = image[top:bottom, left:right]
+    return image
 
 def GetColor(points):
     # 选择一个参考点（这里选择点云的第一个点）
@@ -146,6 +153,7 @@ def GetBox(W, H, name, xml_path):
     if xml_path == "":
         return boxes
 
+    # name = os.path.basename(name)
     file = os.path.join(xml_path, name)
     file = os.path.splitext(file)[0] + '.txt'
     if not os.path.exists(file):
@@ -175,7 +183,43 @@ def CropByBox(depth_map, name, xml_path):
 
     return  crop_depth
 
+def GetImage(name, path):
+    image = None
+    if path == "":
+        return image
 
+    file = os.path.join(path, name)
+    file = os.path.splitext(file)[0] + '.jpg'
+    if not os.path.exists(file):
+        return image
+
+    image = cv2.imread(file)
+
+    return image
+
+def ShowAllImage(name, depth_map, image_rgb, image_point, show = True):
+    depth_color = depth_map
+    depth_color = (depth_color - np.min(depth_color)) * 255 / (np.max(depth_color) - np.min(depth_color))
+    depth_color = depth_color.astype(np.uint8)
+    depth_color = cv2.applyColorMap(depth_color, cv2.COLORMAP_HOT)
+
+    stack = np.vstack([image_rgb, depth_color])
+
+    point2 = np.zeros_like(stack)
+    H, W, _ = point2.shape
+    h, w = image_point.shape
+    scale = min(H/h, W/w)
+    newH, newW = round(h * scale), round(w * scale)
+    image_point = cv2.resize(image_point, (newW, newH))
+    point2[:newH, :newW, 0] = image_point
+
+    stack = np.hstack([stack, point2])
+
+    if show:
+        cv2.imshow(name, stack)
+        cv2.waitKey(100)
+
+    return stack
 
 def main():
     args = GetArgs()
@@ -184,9 +228,10 @@ def main():
     root_len = len(args.file.strip().rstrip('/'))
 
     for f in files:
+        file_name = f[root_len+1:]
         array = cv2.imread(f, cv2.IMREAD_UNCHANGED)
         depth_map = ScaleRecovery(array, args.scale, args.bf)
-        array_box = CropByBox(depth_map, f[root_len+1:], args.xml)
+        array_box = CropByBox(depth_map, file_name, args.xml)
         KL = GetKl(args.config)
         pc = Depth2XYZ(depth_map, KL, depth_scale = 1)
         pc = Reflect4Show(pc)
@@ -197,7 +242,7 @@ def main():
         # 创建一个 Open3D 点云对象并加载数据
         pc_flatten = pc.reshape(-1, 3)
 
-        pc_crop = Crop(pc_box, axis=1, min = 2, max = 70)
+        pc_crop = Crop(pc_box, axis=1, min = 10, max = 70)
 
 
 
@@ -205,7 +250,10 @@ def main():
         if pc_crop is None:
             continue
 
-        pc_crop[-1, :] = [0, 0, 0] ## add origin point
+        try:
+            pc_crop[-1, :] = [0, 0, 0] ## add origin point
+        except:
+            continue
         project_points = Project(pc_crop, axis=1)
 
         pcd = o3d.geometry.PointCloud()
@@ -222,27 +270,31 @@ def main():
 
         name = "flatten"
         cv2.namedWindow(name)
-        DrawPoint(project_points, name)
+        image_point = DrawPoint(project_points, name)
+        image_rgb = GetImage(file_name, args.image)
+        image_show = ShowAllImage(name, depth_map, image_rgb, image_point, show=False)
 
-        FOR = o3d.geometry.TriangleMesh.create_coordinate_frame(size=35, origin=[0, 0, 0])
+        if "" != args.save_dir:
+            save_file = os.path.join(args.save_dir, file_name)
+            MkdirSimple(save_file)
+            cv2.imwrite(save_file, image_show)
 
-        # 创建一个坐标线的起点和终点
-        h_range = 200
-        starts = [[0, 2, 0], [0, 2, -h_range]]
-        ends = [[0, 50, 0], [0, 50, -h_range]]
-        line_sets = []
-        for start_point, end_point in zip(starts, ends):
-            line_set = o3d.geometry.LineSet()
-            line_set.points = o3d.utility.Vector3dVector(np.vstack((start_point, end_point)))
-            lines = np.array([[0, 1]])
-            line_set.lines = o3d.utility.Vector2iVector(lines)
-            line_sets.append(line_set)
+        if args.show_pcl:
+            FOR = o3d.geometry.TriangleMesh.create_coordinate_frame(size=35, origin=[0, 0, 0])
 
-        o3d.visualization.draw_geometries([FOR, pcd, pcd2] + line_sets)
+            # 创建一个坐标线的起点和终点
+            h_range = 200
+            starts = [[0, 2, 0], [0, 2, -h_range]]
+            ends = [[0, 50, 0], [0, 50, -h_range]]
+            line_sets = []
+            for start_point, end_point in zip(starts, ends):
+                line_set = o3d.geometry.LineSet()
+                line_set.points = o3d.utility.Vector3dVector(np.vstack((start_point, end_point)))
+                lines = np.array([[0, 1]])
+                line_set.lines = o3d.utility.Vector2iVector(lines)
+                line_sets.append(line_set)
 
-        # return
-        # cv2.projectPoints()# 此时pc即为点云(point cloud)
-        pc_flatten = pc.reshape(-1, 3)  # 等价于 pc = depth2xyz(depth_map, depth_cam_matrix, flatten=True)
+            o3d.visualization.draw_geometries([FOR, pcd, pcd2] + line_sets)
 
     '''
     ################### 相机测距 ##################
