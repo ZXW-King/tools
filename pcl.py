@@ -197,29 +197,64 @@ def GetImage(name, path):
 
     return image
 
-def ShowAllImage(name, depth_map, image_rgb, image_point, box, show = True):
+def ResizePadding(W, H, C, img):
+    # todo : C check, org and dst
+    point2 = np.zeros((H, W, C))
+    shape = img.shape
+    if len(shape) < 3:
+        h, w =  shape
+        c = 1
+    else:
+        h, w, c = shape
+
+    scale = min(H / h, W / w)
+    newH, newW = round(h * scale), round(w * scale)
+    image_resize = cv2.resize(img, (newW, newH))
+    if 1 == c:
+        point2[:newH, :newW, 0] = image_resize
+    else:
+        point2[:newH, :newW, :] = image_resize
+
+    return point2
+
+def PutText(image, text, left, bottom):
+    margin = 5
+    (text_width, text_height), _ = cv2.getTextSize(text, 2, 1, 1)
+    left_box = left - margin
+    bottom_box = bottom + margin
+    right, top = left + text_width + margin, max(0, bottom - text_height - margin)
+    image = cv2.rectangle(image, (left_box, top), (right, bottom_box), (0, 0, 0), -1)
+    image = cv2.putText(image, text, (left, bottom), 2, 1, (255, 255, 255), 1)
+
+    return image
+
+def ShowAllImage(name, depth_map, image_rgb, image_point, box, show = True, pcl=None):
     depth_color = depth_map
     depth_color = (depth_color - np.min(depth_color)) * 255 / (np.max(depth_color) - np.min(depth_color))
     depth_color = depth_color.astype(np.uint8)
     depth_color = cv2.applyColorMap(depth_color, cv2.COLORMAP_HOT)
 
     depth_color = cv2.rectangle(depth_color, (box[0], box[2]), (box[1], box[3]), (255, 255, 255), 2)
+    depth_color = PutText(depth_color, "depth", 500, 50)
 
     if image_rgb is None:
         stack = depth_color
     else:
         image_rgb = cv2.rectangle(image_rgb, (box[0], box[2]), (box[1], box[3]), (255, 255, 255), 2)
+        image_rgb = PutText(image_rgb, "left image", 450, 50)
         stack = np.vstack([image_rgb, depth_color])
 
-    point2 = np.zeros_like(stack)
-    H, W, _ = point2.shape
-    h, w = image_point.shape
-    scale = min(H/h, W/w)
-    newH, newW = round(h * scale), round(w * scale)
-    image_point = cv2.resize(image_point, (newW, newH))
-    point2[:newH, :newW, 0] = image_point
+    H, W, C = depth_color.shape
+    image_point_resize = ResizePadding(W, H, C, image_point)
+    image_point_resize = PutText(image_point_resize, "bird's eye view", 400, 50)
+    if pcl is not None:
+        pcl_resize = ResizePadding(W, H, C, pcl)
+    else:
+        pcl_resize = np.zeros((H, W, C))
+    pcl_resize = PutText(pcl_resize, "point cloud", 400, 50)
 
-    stack = np.hstack([stack, point2])
+    stack_right = np.vstack([image_point_resize, pcl_resize])
+    stack = np.hstack([stack, stack_right])
 
     if show:
         cv2.imshow(name, stack)
@@ -278,12 +313,6 @@ def main():
         cv2.namedWindow(name)
         image_point = DrawPoint(project_points, name)
         image_rgb = GetImage(file_name, args.image)
-        image_show = ShowAllImage(name, depth_map, image_rgb, image_point, box, show=False)
-
-        if "" != args.save_dir:
-            save_file = os.path.join(args.save_dir, file_name)
-            MkdirSimple(save_file)
-            cv2.imwrite(save_file, image_show)
 
         if args.show_pcl:
             FOR = o3d.geometry.TriangleMesh.create_coordinate_frame(size=35, origin=[0, 0, 0])
@@ -300,7 +329,24 @@ def main():
                 line_set.lines = o3d.utility.Vector2iVector(lines)
                 line_sets.append(line_set)
 
-            o3d.visualization.draw_geometries([FOR, pcd, pcd2] + line_sets)
+            point_cloud = [FOR, pcd, pcd2] + line_sets
+            o3d.visualization.draw_geometries(point_cloud)
+
+            from PIL import ImageGrab
+            screenshot = ImageGrab.grab(bbox=(600, 350, 1240, 900))  # 指定截图的区域
+            screenshot = np.array(screenshot)
+            cv2.imshow(name, screenshot)
+            cv2.waitKey(100)
+            image_show = ShowAllImage(name, depth_map, image_rgb, image_point, box, show=False, pcl=screenshot)
+
+        else:
+            image_show = ShowAllImage(name, depth_map, image_rgb, image_point, box, show=False)
+
+
+        if "" != args.save_dir:
+            save_file = os.path.join(args.save_dir, file_name)
+            MkdirSimple(save_file)
+            cv2.imwrite(save_file, image_show)
 
     '''
     ################### 相机测距 ##################
