@@ -15,10 +15,10 @@ CURRENT_DIR = os.path.dirname(__file__)
 sys.path.append(os.path.join(CURRENT_DIR, '../../DL/relocation/'))
 
 import argparse
-
 import numpy as np
 import open3d as o3d
 from utils.file import Walk, MkdirSimple
+from tqdm import tqdm
 
 
 def GetArgs():
@@ -181,7 +181,7 @@ def CropByBox(depth_map, name, xml_path):
     left, right = int(box[0] - box[2] / 2), int(box[0] + box[2] / 2)
     crop_depth[top:bottom, left:right] = depth_map[top:bottom, left:right]
 
-    return  crop_depth
+    return  crop_depth, [left, right, top, bottom]
 
 def GetImage(name, path):
     image = None
@@ -197,13 +197,19 @@ def GetImage(name, path):
 
     return image
 
-def ShowAllImage(name, depth_map, image_rgb, image_point, show = True):
+def ShowAllImage(name, depth_map, image_rgb, image_point, box, show = True):
     depth_color = depth_map
     depth_color = (depth_color - np.min(depth_color)) * 255 / (np.max(depth_color) - np.min(depth_color))
     depth_color = depth_color.astype(np.uint8)
     depth_color = cv2.applyColorMap(depth_color, cv2.COLORMAP_HOT)
 
-    stack = np.vstack([image_rgb, depth_color])
+    depth_color = cv2.rectangle(depth_color, (box[0], box[2]), (box[1], box[3]), (255, 255, 255), 2)
+
+    if image_rgb is None:
+        stack = depth_color
+    else:
+        image_rgb = cv2.rectangle(image_rgb, (box[0], box[2]), (box[1], box[3]), (255, 255, 255), 2)
+        stack = np.vstack([image_rgb, depth_color])
 
     point2 = np.zeros_like(stack)
     H, W, _ = point2.shape
@@ -227,18 +233,17 @@ def main():
     files = Walk(args.file, ['jpg', 'png'])
     root_len = len(args.file.strip().rstrip('/'))
 
-    for f in files:
+    for f in tqdm(files):
         file_name = f[root_len+1:]
         array = cv2.imread(f, cv2.IMREAD_UNCHANGED)
         depth_map = ScaleRecovery(array, args.scale, args.bf)
-        array_box = CropByBox(depth_map, file_name, args.xml)
+        array_box, box = CropByBox(depth_map, file_name, args.xml)
         KL = GetKl(args.config)
         pc = Depth2XYZ(depth_map, KL, depth_scale = 1)
         pc = Reflect4Show(pc)
         pc_box = Depth2XYZ(array_box, KL, depth_scale = 1)
         pc_box = Reflect4Show(pc_box)
 
-        print("Load a ply point cloud, print it, and render it")
         # 创建一个 Open3D 点云对象并加载数据
         pc_flatten = pc.reshape(-1, 3)
 
@@ -251,6 +256,7 @@ def main():
             continue
 
         try:
+            # todo : why
             pc_crop[-1, :] = [0, 0, 0] ## add origin point
         except:
             continue
@@ -272,7 +278,7 @@ def main():
         cv2.namedWindow(name)
         image_point = DrawPoint(project_points, name)
         image_rgb = GetImage(file_name, args.image)
-        image_show = ShowAllImage(name, depth_map, image_rgb, image_point, show=False)
+        image_show = ShowAllImage(name, depth_map, image_rgb, image_point, box, show=False)
 
         if "" != args.save_dir:
             save_file = os.path.join(args.save_dir, file_name)
