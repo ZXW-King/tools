@@ -262,6 +262,21 @@ def ShowAllImage(name, depth_map, image_rgb, image_point, box, show = True, pcl=
 
     return stack
 
+def GetLine():
+    # 创建一个坐标线的起点和终点
+    h_range = 200
+    starts = [[0, 2, 0], [0, 2, -h_range]]
+    ends = [[0, 50, 0], [0, 50, -h_range]]
+    line_sets = []
+    for start_point, end_point in zip(starts, ends):
+        line_set = o3d.geometry.LineSet()
+        line_set.points = o3d.utility.Vector3dVector(np.vstack((start_point, end_point)))
+        lines = np.array([[0, 1]])
+        line_set.lines = o3d.utility.Vector2iVector(lines)
+        line_sets.append(line_set)
+
+    return line_sets
+
 def main():
     args = GetArgs()
 
@@ -316,19 +331,7 @@ def main():
 
         if args.show_pcl:
             FOR = o3d.geometry.TriangleMesh.create_coordinate_frame(size=35, origin=[0, 0, 0])
-
-            # 创建一个坐标线的起点和终点
-            h_range = 200
-            starts = [[0, 2, 0], [0, 2, -h_range]]
-            ends = [[0, 50, 0], [0, 50, -h_range]]
-            line_sets = []
-            for start_point, end_point in zip(starts, ends):
-                line_set = o3d.geometry.LineSet()
-                line_set.points = o3d.utility.Vector3dVector(np.vstack((start_point, end_point)))
-                lines = np.array([[0, 1]])
-                line_set.lines = o3d.utility.Vector2iVector(lines)
-                line_sets.append(line_set)
-
+            line_sets = GetLine()
             point_cloud = [FOR, pcd, pcd2] + line_sets
             o3d.visualization.draw_geometries(point_cloud)
 
