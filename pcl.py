@@ -153,11 +153,15 @@ def GetBox(W, H, name, xml_path):
     if xml_path == "":
         return boxes
 
-    # name = os.path.basename(name)
     file = os.path.join(xml_path, name)
     file = os.path.splitext(file)[0] + '.txt'
     if not os.path.exists(file):
-        return boxes
+        # fix for abnormal path by human
+        name = os.path.basename(name)
+        file = os.path.join(xml_path, name)
+        file = os.path.splitext(file)[0] + '.txt'
+        if not os.path.exists(file):
+            return boxes
 
     with open(file, 'r') as f:
         lines = f.readlines()
@@ -174,7 +178,7 @@ def CropByBox(depth_map, name, xml_path):
 
     crop_depth = np.zeros_like(depth_map)
     if len(boxes) < 1:
-        return depth_map
+        return depth_map, [0, 0, 0, 0]
 
     box = boxes[0]
     top, bottom = int(box[1] - box[3] / 2), int(box[1] + box[3] / 2)
@@ -249,9 +253,9 @@ def ShowAllImage(name, depth_map, image_rgb, image_point, box, show = True, pcl=
     image_point_resize = PutText(image_point_resize, "bird's eye view", 400, 50)
     if pcl is not None:
         pcl_resize = ResizePadding(W, H, C, pcl)
+        pcl_resize = PutText(pcl_resize, "point cloud", 400, 50)
     else:
         pcl_resize = np.zeros((H, W, C))
-    pcl_resize = PutText(pcl_resize, "point cloud", 400, 50)
 
     stack_right = np.vstack([image_point_resize, pcl_resize])
     stack = np.hstack([stack, stack_right])
