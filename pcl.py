@@ -118,7 +118,7 @@ def GetColor(points):
 
 def ScaleRecovery(array, scale, bf):
     max_distance = 5
-    min_distance = 0.5
+    min_distance = 0.1
     array = array.astype(float)
     array /= scale
     if bf > 0:
@@ -238,6 +238,22 @@ def PutText(image, text, left, bottom):
 
     return image
 
+def StackDepth(depth_map, image_rgb):
+    depth_color = depth_map
+    depth_color = depth_color.astype(float)
+    depth_color = (depth_color - np.min(depth_color)) * 255 / (np.max(depth_color) - np.min(depth_color))
+    depth_color = depth_color.astype(np.uint8)
+    depth_color = cv2.applyColorMap(depth_color, cv2.COLORMAP_HOT)
+    # depth_color = PutText(depth_color, "depth", 500, 50)
+
+    if image_rgb is None:
+        stack = depth_color
+    else:
+        # image_rgb = PutText(image_rgb, "left image", 450, 50)
+        stack = np.vstack([image_rgb, depth_color])
+
+    return stack
+
 def ShowAllImage(name, depth_map, image_rgb, image_point, box, show = True, pcl=None):
     depth_color = depth_map
     depth_color = (depth_color - np.min(depth_color)) * 255 / (np.max(depth_color) - np.min(depth_color))
@@ -290,6 +306,15 @@ def GetLine():
 
     return line_sets
 
+def GetExtrinsic():
+    extrinsic = np.eye(4)
+    axis = 1
+    extrinsic[axis, axis] = -1
+    axis = 2
+    extrinsic[axis, axis] = -1
+
+    return extrinsic
+
 def main():
     args = GetArgs()
 
@@ -299,6 +324,7 @@ def main():
     for f in tqdm(files):
         file_name = f[root_len+1:]
         array = cv2.imread(f, cv2.IMREAD_UNCHANGED)
+        print(file_name)
         depth_map = ScaleRecovery(array, args.scale, args.bf)
         KL = GetKl(args.config)
         pc = Depth2XYZ(depth_map, KL, depth_scale = 1)
@@ -333,16 +359,35 @@ def main():
             pcd2.paint_uniform_color([0, 0.651, 0.929])  # 蓝色
             pcd2.colors = o3d.utility.Vector3dVector(colors)
 
-        pcd = o3d.geometry.PointCloud()
-        pcd.points = o3d.utility.Vector3dVector(pc_flatten)
-
         name = "flatten"
-        # cv2.namedWindow(name) # slow
+        cv2.namedWindow(name) # slow
         if args.range:
             image_point = DrawPoint(project_points, name)
         else:
             image_point = None
         image_rgb = GetImage(file_name, args.image)
+        stack = StackDepth(array, image_rgb)
+        cv2.imshow(name, stack)
+        cv2.waitKey(100)
+
+        depth_map = depth_map.astype(np.uint16)
+        depth_image = o3d.geometry.Image(depth_map)
+        color_image = o3d.geometry.Image(image_rgb)
+        rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(color_image, depth_image)
+        extrinsic = GetExtrinsic()
+        intrinsic = o3d.camera.PinholeCameraIntrinsic(640, 400, KL[0, 0], KL[1, 1], KL[0, 2], KL[1, 2])
+
+        pcd = o3d.geometry.PointCloud().create_from_rgbd_image(rgbd, intrinsic, extrinsic)
+
+        o3d.visualization.draw_geometries([pcd])
+        cv2.destroyWindow(name)
+        continue
+
+
+
+
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(pc_flatten)
 
         if args.show_pcl:
             FOR = o3d.geometry.TriangleMesh.create_coordinate_frame(size=35, origin=[0, 0, 0])
@@ -364,12 +409,12 @@ def main():
             cv2.imshow(name, image_show)
             cv2.waitKey(100)
 
-
             if "" != args.save_dir:
                 save_file = os.path.join(args.save_dir, file_name)
                 MkdirSimple(save_file)
                 cv2.imwrite(save_file, image_show)
 
+        cv2.destroyWindow(name)
     '''
     ################### 相机测距 ##################
     置 flatten=False 此时的pc是具有二维信息的 既shape为(720, 1280, 3) 否则为(720 * 1280, 3)
