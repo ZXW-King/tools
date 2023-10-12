@@ -338,6 +338,38 @@ def EqualizeHist(image):
 
     return out
 
+def FilterPointCloud(point_cloud):
+    # 估计点云法线
+    point_cloud.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30))
+
+    # 创建统计滤波器对象并设置参数
+    statistical_filter = point_cloud
+    mean_k = 10  # 设置要考虑的邻域点的数量
+    std_dev = 50  # 设置标准差阈值
+
+    # 进行统计滤波
+    filtered_point_cloud = statistical_filter.remove_statistical_outlier(nb_neighbors=mean_k, std_ratio=std_dev)
+    filtered_point_cloud = filtered_point_cloud[0]
+
+    # filtered_point_cloud.voxel_down_sample(voxel_size=0.01)
+
+    return filtered_point_cloud
+
+def FilterDepth(depth_map):
+    sobel_x = cv2.Sobel(depth_map, cv2.CV_64F, 1, 0, ksize=3)  # X方向梯度
+    sobel_y = cv2.Sobel(depth_map, cv2.CV_64F, 0, 1, ksize=3)  # Y方向梯度
+
+    # 计算梯度幅值
+    gradient_magnitude = np.sqrt(sobel_x ** 2 + sobel_y ** 2)
+    percentile = 99
+    threshold = np.percentile(gradient_magnitude, percentile)
+
+    # 获取梯度较大的点的索引
+    selected_indices = np.where(gradient_magnitude > threshold)
+    depth_map[selected_indices] = 0
+
+    return  depth_map
+
 def main():
     args = GetArgs()
 
@@ -390,7 +422,8 @@ def main():
             image_point = None
         image_rgb = GetImage(file_name, args.image)
         image_rgb = EqualizeHist(image_rgb)
-        stack = StackDepth(array, image_rgb)
+        depth_map = FilterDepth(depth_map)
+        stack = StackDepth(depth_map, image_rgb)
         cv2.imshow(name, stack)
         cv2.waitKey(100)
 
