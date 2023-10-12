@@ -26,12 +26,13 @@ def GetArgs():
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--file", type=str, default="", help="")
     parser.add_argument("--bf", type=float, default="-1", help="")
-    parser.add_argument("--scale", type=int, default="256")
+    parser.add_argument("--scale", type=float, default="256")
     parser.add_argument("--config", type=str, default="")
     parser.add_argument("--xml", type=str, default="")
     parser.add_argument("--image", type=str, default="")
     parser.add_argument("--save_dir", type=str, default="")
     parser.add_argument("--show_pcl", action="store_true")
+    parser.add_argument("--range", action="store_true")
 
     args = parser.parse_args()
     return args
@@ -117,11 +118,13 @@ def GetColor(points):
 
 def ScaleRecovery(array, scale, bf):
     max_distance = 5
+    min_distance = 0.5
     array = array.astype(float)
     array /= scale
     if bf > 0:
         array = bf / array
         array[array > max_distance] = 0
+        array[array < min_distance] = 0
         array *= 100
     else:
         pass
@@ -211,6 +214,9 @@ def ResizePadding(W, H, C, img):
     else:
         h, w, c = shape
 
+    if h < 1 or w < 1:
+        return point2
+
     scale = min(H / h, W / w)
     newH, newW = round(h * scale), round(w * scale)
     image_resize = cv2.resize(img, (newW, newH))
@@ -249,8 +255,11 @@ def ShowAllImage(name, depth_map, image_rgb, image_point, box, show = True, pcl=
         stack = np.vstack([image_rgb, depth_color])
 
     H, W, C = depth_color.shape
-    image_point_resize = ResizePadding(W, H, C, image_point)
-    image_point_resize = PutText(image_point_resize, "bird's eye view", 400, 50)
+    if image_point is None:
+        image_point_resize = np.zeros((H, W, C))
+    else:
+        image_point_resize = ResizePadding(W, H, C, image_point)
+        image_point_resize = PutText(image_point_resize, "bird's eye view", 400, 50)
     if pcl is not None:
         pcl_resize = ResizePadding(W, H, C, pcl)
         pcl_resize = PutText(pcl_resize, "point cloud", 400, 50)
@@ -291,69 +300,75 @@ def main():
         file_name = f[root_len+1:]
         array = cv2.imread(f, cv2.IMREAD_UNCHANGED)
         depth_map = ScaleRecovery(array, args.scale, args.bf)
-        array_box, box = CropByBox(depth_map, file_name, args.xml)
         KL = GetKl(args.config)
         pc = Depth2XYZ(depth_map, KL, depth_scale = 1)
         pc = Reflect4Show(pc)
-        pc_box = Depth2XYZ(array_box, KL, depth_scale = 1)
-        pc_box = Reflect4Show(pc_box)
+
 
         # 创建一个 Open3D 点云对象并加载数据
         pc_flatten = pc.reshape(-1, 3)
 
-        pc_crop = Crop(pc_box, axis=1, min = 10, max = 70)
+        if args.range:
+            array_box, box = CropByBox(depth_map, file_name, args.xml)
+            pc_box = Depth2XYZ(array_box, KL, depth_scale=1)
+            pc_box = Reflect4Show(pc_box)
+            pc_crop = Crop(pc_box, axis=1, min = 10, max = 70)
 
+            # todo : not skip
+            if pc_crop is None:
+                continue
 
+            try:
+                # todo : why
+                pc_crop[-1, :] = [0, 0, 0] ## add origin point
+            except:
+                continue
+            project_points = Project(pc_crop, axis=1)
 
-        # todo : not skip
-        if pc_crop is None:
-            continue
+            pcd2 = o3d.geometry.PointCloud()
+            pcd2.points = o3d.utility.Vector3dVector(pc_crop)
 
-        try:
-            # todo : why
-            pc_crop[-1, :] = [0, 0, 0] ## add origin point
-        except:
-            continue
-        project_points = Project(pc_crop, axis=1)
+            # pcd.paint_uniform_color([1, 0.706, 0])  # 黄色
+            colors = GetColor(pc_crop)
+            pcd2.paint_uniform_color([0, 0.651, 0.929])  # 蓝色
+            pcd2.colors = o3d.utility.Vector3dVector(colors)
 
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(pc_flatten)
 
-
-        pcd2 = o3d.geometry.PointCloud()
-        pcd2.points = o3d.utility.Vector3dVector(pc_crop)
-
-        # pcd.paint_uniform_color([1, 0.706, 0])  # 黄色
-        colors = GetColor(pc_crop)
-        pcd2.paint_uniform_color([0, 0.651, 0.929])  # 蓝色
-        pcd2.colors = o3d.utility.Vector3dVector(colors)
-
         name = "flatten"
-        cv2.namedWindow(name)
-        image_point = DrawPoint(project_points, name)
+        # cv2.namedWindow(name) # slow
+        if args.range:
+            image_point = DrawPoint(project_points, name)
+        else:
+            image_point = None
         image_rgb = GetImage(file_name, args.image)
 
         if args.show_pcl:
             FOR = o3d.geometry.TriangleMesh.create_coordinate_frame(size=35, origin=[0, 0, 0])
             line_sets = GetLine()
-            point_cloud = [FOR, pcd, pcd2] + line_sets
+            if args.range:
+                point_cloud = [FOR, pcd, pcd2] + line_sets
+            else:
+                point_cloud = [FOR, pcd]
             o3d.visualization.draw_geometries(point_cloud)
 
-            from PIL import ImageGrab
-            screenshot = ImageGrab.grab(bbox=(600, 350, 1240, 900))  # 指定截图的区域
-            screenshot = np.array(screenshot)
-            cv2.imshow(name, screenshot)
-            cv2.waitKey(100)
-            image_show = ShowAllImage(name, depth_map, image_rgb, image_point, box, show=False, pcl=screenshot)
+            # from PIL import ImageGrab
+            # screenshot = ImageGrab.grab(bbox=(600, 350, 1240, 900))  # 指定截图的区域
+            # screenshot = np.array(screenshot)
+
+            # image_show = ShowAllImage(name, depth_map, image_rgb, image_point, box, show=False, pcl=screenshot)
 
         else:
             image_show = ShowAllImage(name, depth_map, image_rgb, image_point, box, show=False)
+            cv2.imshow(name, image_show)
+            cv2.waitKey(100)
 
 
-        if "" != args.save_dir:
-            save_file = os.path.join(args.save_dir, file_name)
-            MkdirSimple(save_file)
-            cv2.imwrite(save_file, image_show)
+            if "" != args.save_dir:
+                save_file = os.path.join(args.save_dir, file_name)
+                MkdirSimple(save_file)
+                cv2.imwrite(save_file, image_show)
 
     '''
     ################### 相机测距 ##################
