@@ -125,7 +125,7 @@ def ScaleRecovery(array, scale, bf):
         array = bf / array
         array[array > max_distance] = 0
         array[array < min_distance] = 0
-        array *= 100
+        array *= 1000
     else:
         pass
 
@@ -315,6 +315,29 @@ def GetExtrinsic():
 
     return extrinsic
 
+def compute(img, min_percentile, max_percentile):
+
+    max_percentile_pixel = np.percentile(img, max_percentile)
+    min_percentile_pixel = np.percentile(img, min_percentile)
+
+    return max_percentile_pixel, min_percentile_pixel
+
+def EqualizeHist(image):
+    img = image
+    hsv_image=cv2.cvtColor(img,cv2.COLOR_RGB2HSV)
+    if hsv_image[:, :, 2].mean()>130:
+        return image
+
+    max_percentile_pixel, min_percentile_pixel = compute(img, 1, 94)
+
+    img[img >= max_percentile_pixel] = max_percentile_pixel
+    img[img <= min_percentile_pixel] = min_percentile_pixel
+
+    out = np.zeros(img.shape, img.dtype)
+    cv2.normalize(img, out, 255 * 0.1, 255 * 0.9, cv2.NORM_MINMAX)
+
+    return out
+
 def main():
     args = GetArgs()
 
@@ -366,6 +389,7 @@ def main():
         else:
             image_point = None
         image_rgb = GetImage(file_name, args.image)
+        image_rgb = EqualizeHist(image_rgb)
         stack = StackDepth(array, image_rgb)
         cv2.imshow(name, stack)
         cv2.waitKey(100)

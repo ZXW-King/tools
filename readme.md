@@ -15,8 +15,11 @@ python3 main.py --input  /media/hao/U393/BASE/dir1 --output_dir /media/hao/U393/
 
 ### 深度图显示
 显示点云
-```angular2html
+```shell
+# MobileLightStereo
 /WORK/LIB/Python/flask/bin/python /WORK/CODE/Python/remap_python/pcl.py --file /media/hao/U393/madnet_test_data/Parker/TRAIN/data_2023_08_23/DEPTH/D10.7.0/disp --scale 256 --config /MVS/Parker/REMAP/TRAIN/data_2023_08_23/data_2023_0823_1/config.yaml --image /media/hao/U393/madnet_test_data/Parker/TRAIN/data_2023_08_23/REMAP/cam0 --bf 34.24 --show_pcl
+# LightStereo
+/WORK/LIB/Python/flask/bin/python /WORK/CODE/Python/remap_python/pcl.py --file /media/hao/U393/madnet_test_data/Parker/TRAIN/data_2023_08_23/DEPTH/D13.1.1/disp_scaleX256_uint16/cam0 --scale 256 --config /MVS/Parker/REMAP/TRAIN/data_2023_08_23/data_2023_0823_1/config.yaml --image /media/hao/U393/madnet_test_data/Parker/TRAIN/data_2023_08_23/REMAP/cam0 --bf 34.24 --show_pcl
 ```
 
 数字键 1 和 2 可以切换颜色；
