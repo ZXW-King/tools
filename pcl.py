@@ -198,7 +198,9 @@ def GetImage(name, path):
     file = os.path.join(path, name)
     file = os.path.splitext(file)[0] + '.jpg'
     if not os.path.exists(file):
-        return image
+        file = os.path.splitext(file)[0] + '.png'
+        if not os.path.exists(file):
+            return image
 
     image = cv2.imread(file)
 
@@ -378,6 +380,7 @@ def main():
 
     for f in tqdm(files):
         file_name = f[root_len+1:]
+        f = '/WORK/CODE/CPP/perception_standard_library/build/debug_gpu/lib/result/0_depth2.png'
         array = cv2.imread(f, cv2.IMREAD_UNCHANGED)
         print(file_name)
         depth_map = ScaleRecovery(array, args.scale, args.bf)
